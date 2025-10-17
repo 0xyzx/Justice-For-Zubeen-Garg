@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Justice For Zubeen Garg</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind for custom colors and font -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'zubeen-dark': '#0f172a', 
+                        'zubeen-accent': '#2dd4bf', 
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        /* Custom styles for mobile-first appeal and shadows */
+        .card-shadow {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* Ensure the image container maintains an aspect ratio while covering */
+        .image-container {
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            position: relative;
+            overflow: hidden;
+        }
+        .image-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body class="bg-zubeen-dark min-h-screen flex items-center justify-center p-4 font-sans">
+
+    <!-- Main Content Container -->
+    <div class="w-full max-w-sm sm:max-w-md bg-gray-800 rounded-xl overflow-hidden shadow-2xl card-shadow">
+        
+        <!-- Header Image Area (Zubeen Garg Image) -->
+        <div class="relative image-container rounded-t-xl">
+            <img 
+                id="zubeen-image"
+                src="https://i.ibb.co/DDvBnd8P/b858e63acef219b6b147e81237eaf894.jpg"
+                alt="Zubeen Garg" 
+                class="w-full h-auto object-cover rounded-t-xl"
+                onerror="this.onerror=null;this.src='https://placehold.co/800x450/1e293b/94a3b8?text=Artist+Photo+Placeholder';"
+            >
+            <div class="absolute inset-0 bg-black opacity-30"></div>
+        </div>
+
+        <!-- Text and CTA Area -->
+        <div class="p-6 sm:p-8 text-center">
+            
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-white mb-2 leading-tight">
+                Justice For <span class="text-zubeen-accent">Zubeen Garg</span>
+            </h1>
+
+            <p class="text-gray-400 mb-6 text-lg">
+                Your voice is crucial for this cause. Sign the petition below.
+            </p>
+
+            <!-- Signature Count Display -->
+            <div id="signature-count-container" class="mb-8 p-3 bg-gray-700 rounded-lg shadow-inner">
+                <p class="text-xl text-gray-300 font-semibold uppercase tracking-wider">
+                    Total Signatures
+                </p>
+                <span id="signature-counter" class="text-zubeen-accent text-5xl font-extrabold leading-none block mt-1">
+                    Loading...
+                </span>
+            </div>
+
+            <!-- Signature Button -->
+            <button 
+                id="signature-button"
+                class="w-full py-3 px-6 text-lg font-bold text-gray-900 bg-zubeen-accent rounded-full transition-all duration-300 ease-in-out transform hover:scale-105 hover:bg-teal-300 focus:outline-none focus:ring-4 focus:ring-zubeen-accent focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                onclick="recordSignature()"
+            >
+                Add Your Signature
+            </button>
+
+            <!-- Confirmation Message Box -->
+            <div 
+                id="confirmation-message"
+                class="mt-6 py-3 px-4 bg-green-900 text-green-300 rounded-lg hidden transition-opacity duration-500 ease-in-out text-base font-medium"
+            >
+                Signature Recorded. Thank you!
+            </div>
+            
+            <!-- Footer/Context (Optional) -->
+            <div class="mt-8 pt-4 border-t border-gray-700">
+                <p class="text-xs text-gray-500">
+                    Current user ID: <span id="user-id-display">N/A</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, signInAnonymously, signInWithCustomToken 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, doc, onSnapshot, 
+            increment, writeBatch, serverTimestamp, setLogLevel,
+            getDoc // Used for efficient pre-check
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global state for Firebase services and user details
+        let db;
+        let auth;
+        let userId = null;
+        let isSigned = false; 
+
+        // Configuration and Firestore Paths using global variables (MANDATORY)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        // Define the fallback configuration provided by the user for environments where the global variable is not set.
+        const FALLBACK_CONFIG_JSON = JSON.stringify({
+             apiKey: "AIzaSyBnaBCEHuXZoko8WPb2AVpvkHXnLkhdIRw",
+             authDomain: "justice-792fc.firebaseapp.com",
+             projectId: "justice-792fc",
+             storageBucket: "justice-792fc.firebasestorage.app",
+             messagingSenderId: "903378811379",
+             appId: "1:903378811379:web:b6ee1c5a96ca7bff3e7a86",
+             measurementId: "G-HN5L0Q91X5"
+        });
+
+        // Use the injected config if available and valid, otherwise use the hardcoded fallback.
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' && __firebase_config !== '{}' ? __firebase_config : FALLBACK_CONFIG_JSON);
+        
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // Public paths for shared data (MANDATORY structure)
+        const PUBLIC_COUNT_DOC_PATH = `artifacts/${appId}/public/data/global_count/zubeen_signatures`;
+        const PUBLIC_LOG_COLLECTION_PATH = `artifacts/${appId}/public/data/signatures_log`;
+
+        /**
+         * Updates the UI to show the current user ID.
+         */
+        function updateUserIdDisplay() {
+            const userIdDisplay = document.getElementById('user-id-display');
+            if (userIdDisplay && userId) {
+                userIdDisplay.textContent = userId;
+            } else if (userIdDisplay) {
+                userIdDisplay.textContent = 'Auth Failed / N/A';
+            }
+        }
+
+        /**
+         * Initializes Firebase and authenticates the user.
+         */
+        async function setupFirebase() {
+            const counterElement = document.getElementById('signature-counter');
+            
+            // Check if firebaseConfig has the minimum required key (apiKey)
+            if (!firebaseConfig || !firebaseConfig.apiKey) {
+                console.error("CRITICAL ERROR: Firebase configuration is missing or invalid. Data storage disabled.");
+                counterElement.textContent = 'Error';
+                updateUserIdDisplay();
+                return;
+            }
+
+            try {
+                setLogLevel('debug');
+                
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Authentication using custom token or anonymously
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Get or generate user ID (critical for logging)
+                userId = auth.currentUser?.uid || crypto.randomUUID();
+                updateUserIdDisplay();
+                
+                console.log("--- Firebase Setup Success ---");
+                
+                // 1. Check if the user has already signed
+                await checkIfUserHasSigned();
+
+                // 2. Start listening for the count
+                listenForSignatureCount();
+                
+            } catch (error) {
+                console.error("CRITICAL: Firebase setup or authentication failed. Data functionality disabled.", error);
+                counterElement.textContent = 'Error';
+                updateUserIdDisplay();
+            }
+        }
+        
+        /**
+         * Checks the public log to see if the current user has signed the petition.
+         * Uses the userId as the document ID for efficient lookup.
+         */
+        async function checkIfUserHasSigned() {
+            if (!db || !userId) return;
+
+            try {
+                // Check the single document directly since recordSignature uses userId as the doc ID
+                const signatureDocRef = doc(db, PUBLIC_LOG_COLLECTION_PATH, userId);
+                const docSnap = await getDoc(signatureDocRef);
+
+                if (docSnap.exists()) {
+                    isSigned = true;
+                    // Update UI 
+                    const button = document.getElementById('signature-button');
+                    const messageBox = document.getElementById('confirmation-message');
+                    
+                    button.textContent = 'Already Signed';
+                    button.disabled = true;
+                    button.classList.replace('bg-zubeen-accent', 'bg-gray-600');
+                    button.classList.replace('text-gray-900', 'text-white');
+                    button.classList.add('cursor-default');
+
+                    messageBox.textContent = 'Signature Recorded. Thank you! (You have already signed)';
+                    messageBox.classList.remove('hidden');
+                    messageBox.classList.replace('bg-green-900', 'bg-gray-700');
+                    messageBox.classList.replace('text-green-300', 'text-gray-400');
+                }
+            } catch(e) {
+                console.warn("Failed to check user sign status:", e);
+                // Non-critical failure, proceed with loading
+            }
+        }
+
+
+        /**
+         * Sets up a real-time listener for the total signature count.
+         */
+        function listenForSignatureCount() {
+            if (!db) return;
+
+            const countDocRef = doc(db, PUBLIC_COUNT_DOC_PATH);
+            const counterElement = document.getElementById('signature-counter');
+            
+            onSnapshot(countDocRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    // Display the current count
+                    const count = docSnap.data().count || 0;
+                    counterElement.textContent = count.toLocaleString();
+                } else {
+                    // Document doesn't exist, initialize counter to 0
+                    counterElement.textContent = '0';
+                }
+            }, (error) => {
+                console.error("ERROR: Firestore count listener failed:", error);
+                counterElement.textContent = 'Error';
+            });
+        }
+
+        /**
+         * Records the signature by atomically logging the signature and incrementing the counter.
+         */
+        window.recordSignature = async function() {
+            if (!db || isSigned || !userId) {
+                console.error("FATAL: Cannot record signature: DB not ready, already signed, or userId missing.");
+                // Show temporary error message instead of alert
+                const tempMessageBox = document.getElementById('confirmation-message');
+                tempMessageBox.textContent = isSigned ? 'You have already signed this petition.' : 'Database or user ID not ready. Please try again.';
+                tempMessageBox.classList.replace('bg-green-900', 'bg-red-900');
+                tempMessageBox.classList.replace('text-green-300', 'text-red-300');
+                tempMessageBox.classList.remove('hidden');
+                setTimeout(() => tempMessageBox.classList.add('hidden'), 3000);
+                return;
+            }
+
+            // Set state immediately to prevent double-clicking
+            isSigned = true;
+            const button = document.getElementById('signature-button');
+            const messageBox = document.getElementById('confirmation-message');
+            
+            button.disabled = true;
+            button.textContent = 'Recording Signature...';
+            button.classList.remove('hover:scale-105');
+
+            messageBox.classList.replace('bg-red-900', 'bg-green-900');
+            messageBox.classList.replace('text-red-300', 'text-green-300');
+            messageBox.classList.add('hidden');
+
+            try {
+                const batch = writeBatch(db);
+                
+                // 1. Increment the counter (creates doc if it doesn't exist)
+                const countDocRef = doc(db, PUBLIC_COUNT_DOC_PATH);
+                batch.set(countDocRef, { 
+                    count: increment(1) 
+                }, { merge: true }); 
+
+                // 2. Log the individual signature (using userId as the document ID for guaranteed uniqueness)
+                const signatureLogDocRef = doc(db, PUBLIC_LOG_COLLECTION_PATH, userId); 
+                batch.set(signatureLogDocRef, {
+                    userId: userId, 
+                    timestamp: serverTimestamp(),
+                });
+                
+                console.log("Attempting Batch Commit...");
+                await batch.commit();
+                console.log("Batch Commit successful.");
+
+                // Success UI Update
+                button.textContent = 'Signed';
+                messageBox.textContent = 'Signature Recorded. Thank you!';
+                messageBox.classList.remove('hidden');
+                button.classList.replace('bg-zubeen-accent', 'bg-gray-600');
+                button.classList.replace('text-gray-900', 'text-white');
+                button.classList.add('cursor-default');
+
+            } catch (error) {
+                console.error("CRITICAL: Signature failed. Ensure Firebase security rules allow authenticated users to write to the public data path.", error);
+                
+                // Revert state on failure
+                isSigned = false; 
+                button.disabled = false;
+                button.textContent = 'Add Your Signature (Failed)';
+                button.classList.add('hover:scale-105');
+                
+                // Show error message
+                messageBox.textContent = 'ERROR: Signature failed to save. Please check console for details (often a permission issue).';
+                messageBox.classList.replace('bg-green-900', 'bg-red-900');
+                messageBox.classList.replace('text-green-300', 'text-red-300');
+                messageBox.classList.remove('hidden');
+            }
+        }
+        
+        // Start Firebase setup on window load
+        window.onload = setupFirebase;
+    </script>
+</body>
+</html>
