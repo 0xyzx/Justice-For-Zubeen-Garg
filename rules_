@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function ensures only authenticated users (including anonymous) can perform actions.
+    function isAuthenticated() {
+      // This allows both users signed in with a custom token and anonymously signed-in users.
+      return request.auth != null;
+    }
+
+    // --- PUBLIC DATA RULES for Zubeen Petition ---
+
+    // 1. Global Signature Count Document
+    // Path: artifacts/{appId}/public/data/global_count/{countDocId}
+    match /artifacts/{appId}/public/data/global_count/{countDocId} {
+      // Allow all authenticated users to read (for the real-time signature counter).
+      allow read: if isAuthenticated();
+
+      // Allow all authenticated users to write (create or update via the atomic increment).
+      allow write: if isAuthenticated();
+    }
+    
+    // 2. Individual Signature Log Collection
+    // Path: artifacts/{appId}/public/data/signatures_log/{signatureId}
+    match /artifacts/{appId}/public/data/signatures_log/{signatureId} {
+      
+      // Allow an authenticated user to GET their own signature document to check if they've signed.
+      allow get: if isAuthenticated() && request.auth.uid == signatureId;
+      
+      // Allow an authenticated user to CREATE a new signature log,
+      // but ONLY if the document ID ({signatureId}) matches their authenticated user ID (UID).
+      allow create: if isAuthenticated() && request.auth.uid == signatureId;
+      
+      // Deny any subsequent updates or deletions to the signature record, guaranteeing a single sign.
+      allow update, delete: if false;
+    }
+  }
+}
