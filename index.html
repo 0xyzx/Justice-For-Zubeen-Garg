@@ -101,9 +101,10 @@
             
             <!-- Footer/Context (Optional) -->
             <div class="mt-8 pt-4 border-t border-gray-700">
-                <p class="text-xs text-gray-500">
-                    Current user ID: <span id="user-id-display">N/A</span>
+                <p class="text-sm text-gray-400 font-medium">
+                    This is a public awareness and support campaign.
                 </p>
+                <!-- The unique signature ID display was removed -->
             </div>
         </div>
     </div>
@@ -149,9 +150,12 @@
         const PUBLIC_LOG_COLLECTION_PATH = `artifacts/${appId}/public/data/signatures_log`;
 
         /**
-         * Updates the UI to show the current user ID.
+         * Updates the UI to show the current user ID. (Function is kept but unused in the UI)
          */
         function updateUserIdDisplay() {
+            // This function is still needed to establish the userId internally, 
+            // but the UI element for display is removed.
+            // Keeping the logic for safety.
             const userIdDisplay = document.getElementById('user-id-display');
             if (userIdDisplay && userId) {
                 userIdDisplay.textContent = userId;
